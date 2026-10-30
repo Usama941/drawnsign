@@ -511,11 +511,17 @@ Build the shared signing engine first, then the company workspace for internal g
 
 | Milestone | Weeks | Deliverables | Exit criteria |
 | --- | --- | --- | --- |
-| M0 Foundations | 1–3 | Repo, CI/CD, environments; auth + MFA; tenants with immutable workspace\_type; RLS on all tables; audit ledger with hash chain; S3 + KMS setup | Automated cross-tenant tests pass; ledger tamper test fails as expected |
+| M0 Foundations | 1–3 | Repo, CI/CD, environments; auth + MFA; tenants with immutable workspace\_type; RLS on all tables; audit ledger with hash chain; provider-neutral storage and signing interfaces (Vercel Blob for storage, test fake for signing; see pre-go-live requirements below) | Automated cross-tenant tests pass; ledger tamper test fails as expected |
 | M1 Core signing MVP | 4–10 | PDF upload + sanitising worker; field editor; envelopes, sequential/parallel signing; email OTP; flattening; PAdES seal + timestamp; certificate of completion; verify page + upload-to-verify | A document signed by 3 parties verifies green in Adobe Reader and on the verify page; altered copy shows "no match" |
 | M2 Company workspace | 11–16 | Manager and employee invitations; agreement/consent versioning; amendment classes, approvals, rendering, notifications, acknowledge/dispute; corrections; monthly reports PDF/CSV + email | Pen test 1 passed; employment counsel signs off agreement texts and the class rules; DPIA complete → internal go-live |
 | M3 Public launch | 17–22 | Stripe billing + tax; plans and quotas; team roles; templates; branding; onboarding; marketing site; ToS, DPA, privacy notice | Pen test 2 passed; status page; support runbook → public UK launch |
 | M4 Post-launch (months 7–12) | — | Public API + webhooks; bulk send; enterprise SSO; AES/QES via EU QTSP partner; EU marketing; Pakistan AES via ECAC-accredited provider; SOC 2 Type I prep | Driven by customer demand and counsel opinions |
+
+**Pre-go-live requirements (decision 30 Oct 2026: no AWS during development).** Development uses Vercel Blob for document storage and only a local fake signer in tests, behind provider-neutral `BlobStore` and `Signer` interfaces. Vercel Blob has no write-once retention, and no real sealing key exists yet. Before COMPANY\_MANAGED go-live (M2) and before any real document is sealed, both must be replaced:
+
+- [ ] **Locked storage** for SIGNED versions, certificates, reports and ledger anchors: S3 Object Lock in compliance mode, or an equivalent write-once store, with retention set per tenant policy (section 11).
+- [ ] **Hardware-held sealing key** in a cloud KMS/HSM (FIPS 140-2 L3), signing via its API so the private key never leaves it (section 12). No software key may be used to seal a production document.
+- [ ] Ledger anchors moved to a separate locked store owned by a different cloud account (T2 in section 15).
 
 The weeks are an estimate for 2–3 engineers and assume the agreement texts are drafted in parallel by counsel; a commercial PDF SDK would cut M1 by roughly 4 weeks.
 
