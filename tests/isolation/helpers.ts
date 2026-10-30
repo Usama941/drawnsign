@@ -1,5 +1,7 @@
 import { Client } from "pg";
 import { inject } from "vitest";
+import { Storage } from "@/storage";
+import { FsObjectStore } from "@/storage/fs-store";
 
 export async function connect(which: "admin" | "app"): Promise<Client> {
   const client = new Client({
@@ -16,4 +18,11 @@ export async function existingTables(client: Client, names: readonly string[]): 
     [names],
   );
   return rows.map((r) => r.table_name);
+}
+
+// The suite-wide storage (see global-setup.ts).
+export function sharedStorage() {
+  const dir = inject("storageDir");
+  const evidence = new FsObjectStore(`${dir}/evidence`);
+  return { evidence, storage: new Storage(new FsObjectStore(`${dir}/drafts`), evidence) };
 }

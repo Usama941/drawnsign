@@ -56,25 +56,32 @@ Exit tests (M1b):
 
 ## Part M1c: Seal, certificate of completion and verification
 
-- [ ] **T12 Seal and timestamp.**
+- [x] **T12 Seal and timestamp.**
   - `SealService` builds the PAdES-B-T signature (see constraints) using the `Signer` and the `TimestampAuthority`.
   - Under `SEAL_MODE=development` it uses `DevSealSigner` and the dev certificate. Otherwise it refuses to seal while `goLiveGaps()` is non-empty.
   - The sealed PDF is stored as evidence, written once with retention set.
-- [ ] **T13 Footer line and QR.** Every page of every rendered version gets one footer line: document ID, version, status, a verify QR code (`qrcode`) and the verify URL. Development-sealed files also carry "DEVELOPMENT SEAL - NOT FOR REAL USE" in that line. The footer is drawn before sealing.
-- [ ] **T14 Certificate of completion.** A separate PDF listing signers (masked), auth methods, IPs, timestamps and the version hash. It is sealed the same way and stored in `completion_certificates` with the seal certificate and `seal_mode`.
-- [ ] **T15 Verify page and API.**
+- [x] **T13 Footer line and QR.** Every page of every rendered version gets one footer line: document ID, version, status, a verify QR code (`qrcode`) and the verify URL. Development-sealed files also carry "DEVELOPMENT SEAL - NOT FOR REAL USE" in that line. The footer is drawn before sealing.
+- [x] **T14 Certificate of completion.** A separate PDF listing signers (masked), auth methods, IPs, timestamps and the version hash. It is sealed the same way and stored in `completion_certificates` with the seal certificate and `seal_mode`.
+- [x] **T15 Verify page and API.**
   - `GET /verify/{publicId}?t=` and `POST /verify/hash`.
   - Both run through one narrow `SECURITY DEFINER` lookup that returns only the tenant and the public fields from PRD section 12 for one version; nothing else reads across tenants. Expired tokens return nothing.
   - Without the token, the page shows only that the document exists.
   - COMPANY_MANAGED documents use private verification mode (PRD section 12).
   - Rate-limited.
-- [ ] **T16 Upload-to-verify.** The browser computes the file's SHA-256 with WebCrypto and sends only the hash. Possible answers: "matches signed version vN", "matches version vN (not signed)", or "no match".
-- [ ] **T17 Development-seal display.** In development mode the verify page shows an amber "Development seal - not a trusted signature" banner. It never shows the green "authentic signed document" result for a development seal, and never shows green for any version that was not itself signed (CLAUDE.md rule 8).
+- [x] **T16 Upload-to-verify.** The browser computes the file's SHA-256 with WebCrypto and sends only the hash. Possible answers: "matches signed version vN", "matches version vN (not signed)", or "no match".
+- [x] **T17 Development-seal display.** In development mode the verify page shows an amber "Development seal - not a trusted signature" banner. It never shows the green "authentic signed document" result for a development seal, and never shows green for any version that was not itself signed (CLAUDE.md rule 8).
+
+Notes from the build:
+- Rotated pages are turned upright by the sanitiser (rendered output unchanged), so fields, flattening and the footer never deal with /Rotate.
+- The bottom 5% of every page is reserved for the footer; fields cannot be placed there.
+- The SENT version is the draft plus a "Sent for signature - not signed" footer, with its own verification token.
+- Seals are validated in tests both by our verifier and by Poppler's `pdfsig` (an independent validator): signature valid, whole document signed, issuer unknown (self-signed).
+- `docs/screenshots/` holds screenshots taken by `pnpm test:e2e` of each main screen, the verify page and a render of a signed PDF.
 
 Exit tests (M1c, the PRD M1 exit criteria adjusted for the development seal):
-- [ ] A document signed by 3 parties verifies on the verify page as "Signed v_N_" with the development-seal banner, and its hash, seal and timestamp checks pass. Opened in Adobe Reader, the signature shows the document unmodified since signing, with the signer identity untrusted because the certificate is self-signed.
-- [ ] An altered copy (one byte changed) shows "no match" on upload-to-verify, and its embedded signature fails validation.
-- [ ] A DRAFT or SENT version's QR never produces a green result.
-- [ ] Verify lookups without the token, or with a wrong one, reveal only that the document exists, and tenant B's data never appears through tenant A's public ID.
-- [ ] With `SEAL_MODE` unset, sealing refuses to run, because `goLiveGaps()` is non-empty. With `SEAL_MODE=development`, sealing refuses on a request to `PRODUCTION_HOSTNAME`, and the build and server start refuse in a Vercel production deployment (guard already in `src/lib/seal-mode.ts`).
-- [ ] A test fails if any sealed version or certificate has `seal_mode = DEVELOPMENT` but its rendered footer lacks the development-seal text.
+- [x] A document signed by 3 parties verifies on the verify page as "Signed v_N_" with the development-seal banner, and its hash, seal and timestamp checks pass. Opened in Adobe Reader, the signature shows the document unmodified since signing, with the signer identity untrusted because the certificate is self-signed.
+- [x] An altered copy (one byte changed) shows "no match" on upload-to-verify, and its embedded signature fails validation.
+- [x] A DRAFT or SENT version's QR never produces a green result.
+- [x] Verify lookups without the token, or with a wrong one, reveal only that the document exists, and tenant B's data never appears through tenant A's public ID.
+- [x] With `SEAL_MODE` unset, sealing refuses to run, because `goLiveGaps()` is non-empty. With `SEAL_MODE=development`, sealing refuses on a request to `PRODUCTION_HOSTNAME`, and the build and server start refuse in a Vercel production deployment (guard already in `src/lib/seal-mode.ts`).
+- [x] A test fails if any sealed version or certificate has `seal_mode = DEVELOPMENT` but its rendered footer lacks the development-seal text.

@@ -1,10 +1,12 @@
 import { createHash } from "node:crypto";
 import {
+  degrees,
   EncryptedPDFError,
   PDFArray,
   PDFDict,
   PDFDocument,
   PDFName,
+  PDFPage,
   PDFRawStream,
   PDFRef,
   type PDFObject,
@@ -28,8 +30,11 @@ export type RejectReason =
   | "active_content";
 
 export class PdfRejectedError extends Error {
-  constructor(readonly reason: RejectReason) {
-    super(`PDF rejected: ${reason}`);
+  constructor(
+    readonly reason: RejectReason,
+    detail?: string,
+  ) {
+    super(`PDF rejected: ${reason}${detail ? ` (${detail})` : ""}`);
   }
 }
 
@@ -97,18 +102,48 @@ async function sanitize(input: Uint8Array): Promise<SanitizedPdf> {
   }
 
   const out = await PDFDocument.create({ updateMetadata: false });
-  const copied = await out.copyPages(src, src.getPageIndices());
-  for (const page of copied) out.addPage(page);
+  for (const srcPage of src.getPages()) {
+    const angle = ((srcPage.getRotation().angle % 360) + 360) % 360;
+    if (angle === 0) {
+      const [copy] = await out.copyPages(src, [src.getPages().indexOf(srcPage)]);
+      out.addPage(copy!);
+    } else {
+      out.addPage(await uprightPage(out, srcPage, angle));
+    }
+  }
+  // pdf-lib gives new pages an empty /Annots array; no page keeps one.
+  for (const page of out.getPages()) page.node.delete(PDFName.of("Annots"));
   out.setProducer("drawnsign sanitiser");
   out.setCreator("drawnsign");
   const bytes = await out.save({ useObjectStreams: false });
 
   const check = await load(bytes);
-  if (check.getPageCount() !== pageCount || hasForbiddenContent(check)) {
-    throw new PdfRejectedError("active_content");
-  }
+  if (check.getPageCount() !== pageCount)
+    throw new PdfRejectedError("active_content", "page count changed");
+  const found = forbiddenContent(check);
+  if (found) throw new PdfRejectedError("active_content", found);
 
   return { bytes, sha256: createHash("sha256").update(bytes).digest("hex"), pageCount };
+}
+
+// Bakes a page's /Rotate into its content: the page is redrawn upright as it is displayed, so
+// field positions (fractions of the displayed page), flattening and footers never deal with
+// rotation.
+async function uprightPage(out: PDFDocument, srcPage: PDFPage, angle: number): Promise<PDFPage> {
+  if (angle % 90 !== 0) throw new PdfRejectedError("malformed");
+  const embedded = await out.embedPage(srcPage);
+  const { width: w, height: h } = embedded;
+  const page = PDFPage.create(out);
+  if (angle === 180) {
+    page.setSize(w, h);
+    page.drawPage(embedded, { x: w, y: h, rotate: degrees(180) });
+    return page;
+  }
+  page.setSize(h, w);
+  // Viewer rotation is clockwise; pdf-lib's rotate is counter-clockwise about (x, y).
+  if (angle === 90) page.drawPage(embedded, { x: 0, y: w, rotate: degrees(-90) });
+  else page.drawPage(embedded, { x: h, y: 0, rotate: degrees(90) });
+  return page;
 }
 
 async function load(bytes: Uint8Array): Promise<PDFDocument> {
@@ -127,30 +162,34 @@ async function load(bytes: Uint8Array): Promise<PDFDocument> {
   return doc;
 }
 
-function hasForbiddenContent(doc: PDFDocument): boolean {
+// Returns the first forbidden name found anywhere in the document, or null.
+function forbiddenContent(doc: PDFDocument): string | null {
   for (const [, obj] of doc.context.enumerateIndirectObjects()) {
-    if (containsForbidden(obj, 0)) return true;
+    const found = findForbidden(obj, 0);
+    if (found) return found;
   }
-  return false;
+  return null;
 }
 
-function containsForbidden(obj: PDFObject, depth: number): boolean {
-  if (depth > 32) return true;
-  if (obj instanceof PDFName) return FORBIDDEN.has(obj.decodeText());
-  if (obj instanceof PDFRawStream) return containsForbidden(obj.dict, depth + 1);
+function findForbidden(obj: PDFObject, depth: number): string | null {
+  if (depth > 32) return "nesting too deep";
+  if (obj instanceof PDFName) return FORBIDDEN.has(obj.decodeText()) ? obj.decodeText() : null;
+  if (obj instanceof PDFRawStream) return findForbidden(obj.dict, depth + 1);
   if (obj instanceof PDFDict) {
     for (const [key, value] of obj.entries()) {
-      if (FORBIDDEN.has(key.decodeText())) return true;
-      if (!(value instanceof PDFRef) && containsForbidden(value, depth + 1)) return true;
+      if (FORBIDDEN.has(key.decodeText())) return key.decodeText();
+      const found = value instanceof PDFRef ? null : findForbidden(value, depth + 1);
+      if (found) return found;
     }
-    return false;
+    return null;
   }
   if (obj instanceof PDFArray) {
     for (const value of obj.asArray()) {
-      if (!(value instanceof PDFRef) && containsForbidden(value, depth + 1)) return true;
+      const found = value instanceof PDFRef ? null : findForbidden(value, depth + 1);
+      if (found) return found;
     }
   }
-  return false;
+  return null;
 }
 
 function containsAt(haystack: Uint8Array, needle: number[]): boolean {

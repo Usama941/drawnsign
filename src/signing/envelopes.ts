@@ -8,13 +8,20 @@ import {
   fields,
   recipients,
   signingTokens,
-  tenants,
 } from "@/db/schema";
 import type { TenantContext, Tx } from "@/db/tenant";
 import { hashToken, newToken } from "@/documents/ids";
+import { drawFooter } from "@/pdf/footer";
 import type { MailMessage } from "@/lib/mail";
 import { objectKey, type Storage } from "@/storage";
 import { signingUrl } from "./links";
+import {
+  displayUrl,
+  insertVerificationToken,
+  nextVersionNo,
+  retentionUntil,
+  verifyUrl,
+} from "./versions";
 
 export const FIELD_TYPES = [
   "SIGNATURE",
@@ -26,6 +33,8 @@ export const FIELD_TYPES = [
 ] as const;
 
 const fraction = z.number().min(0).max(1);
+// The bottom 5% of each page is reserved for the identification footer.
+export const FOOTER_LIMIT = 0.95;
 
 export const CreateEnvelope = z
   .object({
@@ -169,36 +178,53 @@ export async function sendEnvelope(
     .from(documentVersions)
     .where(eq(documentVersions.id, env.documentVersionId));
   const [doc] = await tx.select().from(documents).where(eq(documents.id, env.documentId));
-  const [tenant] = await tx.select().from(tenants).where(eq(tenants.id, ctx.tenantId));
-  if (!draft || !doc || !tenant || doc.status !== "DRAFT")
+  if (!draft || !doc || doc.status !== "DRAFT")
     throw new EnvelopeError(409, "document is not a draft");
 
-  const bytes = await storage.getDraft(draft.storageKey);
-  if (!bytes || createHash("sha256").update(bytes).digest("hex") !== draft.sha256) {
+  const draftBytes = await storage.getDraft(draft.storageKey);
+  if (!draftBytes || createHash("sha256").update(draftBytes).digest("hex") !== draft.sha256) {
     throw new Error(`draft bytes missing or altered for version ${draft.id}`);
   }
+  // The SENT version is the draft plus its identification footer (never shown as signed).
   const sentId = randomUUID();
-  const key = objectKey(ctx.tenantId, "documents", doc.id, `${sentId}.pdf`);
-  const retainUntil = new Date(Date.now() + tenant.retentionYears * 365.25 * 86_400_000);
-  await storage.putEvidence(key, bytes, "application/pdf", retainUntil);
-  await tx.insert(documentVersions).values({
-    id: sentId,
-    tenantId: ctx.tenantId,
-    documentId: doc.id,
-    versionNo: 0,
-    parentVersionId: draft.id,
-    kind: "SENT",
-    storageClass: "EVIDENCE",
-    storageKey: key,
-    sha256: draft.sha256,
-    sizeBytes: draft.sizeBytes,
-    pageCount: draft.pageCount,
-    createdBy: ctx.userId,
+  const versionNo = await nextVersionNo(tx, doc.id);
+  const token = newToken();
+  const bytes = await drawFooter(draftBytes, {
+    publicId: doc.publicId,
+    versionNo,
+    status: "Sent for signature - not signed",
+    verifyUrl: verifyUrl(doc.publicId, token),
+    displayUrl: displayUrl(doc.publicId),
+    development: false,
   });
+  const sha256 = createHash("sha256").update(bytes).digest("hex");
+  const key = objectKey(ctx.tenantId, "documents", doc.id, `${sentId}.pdf`);
+  const retainUntil = await retentionUntil(tx, ctx.tenantId);
+  await storage.putEvidence(key, bytes, "application/pdf", retainUntil);
+  const [inserted] = await tx
+    .insert(documentVersions)
+    .values({
+      id: sentId,
+      tenantId: ctx.tenantId,
+      documentId: doc.id,
+      versionNo: 0,
+      parentVersionId: draft.id,
+      kind: "SENT",
+      storageClass: "EVIDENCE",
+      storageKey: key,
+      sha256,
+      sizeBytes: bytes.byteLength,
+      pageCount: draft.pageCount,
+      createdBy: ctx.userId,
+    })
+    .returning({ versionNo: documentVersions.versionNo });
+  if (inserted?.versionNo !== versionNo)
+    throw new Error("version number changed while sending; try again");
+  await insertVerificationToken(tx, ctx, doc.id, sentId, token, retainUntil);
   const now = new Date();
   await tx
     .update(envelopes)
-    .set({ documentVersionId: sentId, versionSha256: draft.sha256, status: "SENT", sentAt: now })
+    .set({ documentVersionId: sentId, versionSha256: sha256, status: "SENT", sentAt: now })
     .where(eq(envelopes.id, env.id));
   await tx
     .update(documents)

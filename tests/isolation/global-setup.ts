@@ -1,4 +1,7 @@
 import { randomBytes } from "node:crypto";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { Client } from "pg";
 import type { TestProject } from "vitest/node";
 import { runMigrations } from "../../db/migrate";
@@ -7,6 +10,7 @@ declare module "vitest" {
   export interface ProvidedContext {
     adminUrl: string;
     appUrl: string;
+    storageDir: string;
   }
 }
 
@@ -51,6 +55,10 @@ export default async function setup(project: TestProject): Promise<void> {
   appUrl.username = APP_LOGIN_ROLE;
   appUrl.password = password;
 
+  // One on-disk store for every test file, so checks that span all sealed versions can read
+  // files written by other test files.
+  const storageDir = mkdtempSync(join(tmpdir(), "drawnsign-isolation-"));
+  project.provide("storageDir", storageDir);
   project.provide("adminUrl", adminUrl);
   project.provide("appUrl", appUrl.toString());
 }

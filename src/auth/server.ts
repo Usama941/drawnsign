@@ -1,18 +1,22 @@
+// Some WebAuthn/X.509 dependencies need the Reflect metadata polyfill loaded first.
+import "reflect-metadata";
 import { passkey } from "@better-auth/passkey";
 import { betterAuth } from "better-auth";
 import { nextCookies } from "better-auth/next-js";
 import { twoFactor } from "better-auth/plugins";
 import { authDatabaseAdapter } from "@/db/auth-adapter";
+import { appBaseUrl, trustedOrigins } from "@/lib/base-url";
 import { listOwnMemberships } from "@/db/memberships";
 import { getMailer } from "@/lib/mail";
 import { sessionCreatedWithMfa } from "./mfa";
 
 function createAuth() {
-  const baseURL = process.env.BETTER_AUTH_URL;
+  const baseURL = appBaseUrl();
   const appName = "drawnsign";
   return betterAuth({
     appName,
     baseURL,
+    trustedOrigins: trustedOrigins(),
     secret: process.env.BETTER_AUTH_SECRET,
     database: authDatabaseAdapter(),
     advanced: { database: { generateId: "uuid" } },
@@ -61,8 +65,8 @@ function createAuth() {
       twoFactor({ issuer: appName }),
       passkey({
         rpName: appName,
-        rpID: baseURL ? new URL(baseURL).hostname : "localhost",
-        origin: baseURL ?? "http://localhost:3000",
+        rpID: new URL(baseURL).hostname,
+        origin: baseURL,
       }),
       nextCookies(),
     ],

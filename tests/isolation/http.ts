@@ -12,6 +12,7 @@ export async function call(
     params?: Record<string, string>;
     json?: unknown;
     body?: Uint8Array;
+    url?: string;
   } = {},
 ): Promise<Response> {
   const handler = ((await mod) as Record<string, Handler>)[method];
@@ -25,6 +26,10 @@ export async function call(
     headers.set("content-type", "application/pdf");
     body = Buffer.from(opts.body);
   }
-  const req = new Request("http://localhost:3000/api/v1/test", { method, headers, body });
+  const req = new Request(`http://localhost:3000${opts.url ?? "/api/v1/test"}`, {
+    method,
+    headers,
+    body,
+  });
   return handler(req, { params: Promise.resolve(opts.params ?? {}) });
 }

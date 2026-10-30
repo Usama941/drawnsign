@@ -11,6 +11,7 @@ export function configureAppEnv(appUrl: string): void {
   process.env.DATABASE_URL = appUrl;
   process.env.BETTER_AUTH_URL = "http://localhost:3000";
   process.env.BETTER_AUTH_SECRET ??= randomBytes(32).toString("hex");
+  process.env.SEAL_MODE = "development";
   setMailerForTests(mailer);
 }
 
