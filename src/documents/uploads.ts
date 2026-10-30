@@ -15,6 +15,15 @@ export function uploadMode(): UploadMode {
   return process.env.UPLOAD_MODE === "blob" ? "blob" : "direct";
 }
 
+// What the browser needs to send the bytes: in blob mode, the exact Blob pathname its
+// client-upload token will allow.
+export function uploadInfo(upload: { id: string; storageKey: string }) {
+  const mode = uploadMode();
+  return mode === "blob"
+    ? { id: upload.id, mode, pathname: `drafts/${upload.storageKey}` }
+    : { id: upload.id, mode };
+}
+
 export function rawUploadKey(tenantId: string, uploadId: string): string {
   return objectKey(tenantId, "uploads", `${uploadId}.pdf`);
 }

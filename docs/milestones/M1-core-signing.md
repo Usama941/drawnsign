@@ -35,19 +35,24 @@ Exit tests (M1a):
 
 ## Part M1b: Envelopes, fields and signing
 
-- [ ] **T6 Schema.** `envelopes` (bound to exactly one `document_version_id` and its sha256), `recipients`, `fields`, `signature_events` (insert-only), and `signing_tokens` (hash only, one recipient, one document version, 30-day expiry, unusable once that recipient has signed or declined). All tenant-scoped with composite foreign keys.
-- [ ] **T7 Field editor.** A pdf.js (`pdfjs-dist`) viewer with a React field layer. It supports signature, initials, date, text, checkbox and dropdown fields, each assigned to a recipient, and sequential or parallel order.
-- [ ] **T8 Send workflow.** `POST /envelopes`, `/send`, `/void`, `/remind`. Sending moves the document DRAFT → SENT and freezes the version hash. Signing-link emails go out by recipient order. An Inngest cron expires envelopes.
-- [ ] **T9 Signer session.** `GET /sign/{signingToken}`. External signers have no account. The tenant is resolved server-side from the signing token, through one narrow `SECURITY DEFINER` lookup that finds the recipient by token hash and returns only the tenant id and that one recipient row; it returns nothing for expired tokens or recipients who have signed or declined. Lookups are rate-limited. It is never read from the URL as a tenant id; the token is treated as a credential, like an API key. After that, every query runs inside `withTenant()` for that tenant. A `signingRoute()` wrapper (third router kind) applies this and writes audit entries with the recipient as actor.
-- [ ] **T10 Signing.** Electronic-records consent screen, then a 6-digit email OTP (hashed, 10-minute expiry, 5 attempts, rate-limited), then fill fields: draw, type or upload a signature. Complete or decline with a reason. Each completion writes a `signature_event` with the version sha256, IP, user agent and auth method. Status moves SENT → PARTIALLY_SIGNED → COMPLETED.
-- [ ] **T11 Flattening.** When the last signer completes, an Inngest step draws all field values and signature images onto the frozen version with pdf-lib, flattens any form fields, and stores the result as a new SIGNED version (insert-only) linked to its parent.
+- [x] **T6 Schema.** `envelopes` (bound to exactly one `document_version_id` and its sha256), `recipients`, `fields`, `signature_events` (insert-only), and `signing_tokens` (hash only, one recipient, one document version, 30-day expiry, unusable once that recipient has signed or declined). All tenant-scoped with composite foreign keys.
+- [x] **T7 Field editor.** A pdf.js (`pdfjs-dist`) viewer with a React field layer. It supports signature, initials, date, text, checkbox and dropdown fields, each assigned to a recipient, and sequential or parallel order.
+- [x] **T8 Send workflow.** `POST /envelopes`, `/send`, `/void`, `/remind`. Sending moves the document DRAFT → SENT and freezes the version hash. Signing-link emails go out by recipient order. An Inngest cron expires envelopes.
+- [x] **T9 Signer session.** `GET /sign/{signingToken}`. External signers have no account. The tenant is resolved server-side from the signing token, through one narrow `SECURITY DEFINER` lookup that finds the recipient by token hash and returns only the tenant id and that one recipient row; it returns nothing for expired tokens or recipients who have signed or declined. Lookups are rate-limited. It is never read from the URL as a tenant id; the token is treated as a credential, like an API key. After that, every query runs inside `withTenant()` for that tenant. A `signingRoute()` wrapper (third router kind) applies this and writes audit entries with the recipient as actor.
+- [x] **T10 Signing.** Electronic-records consent screen, then a 6-digit email OTP (hashed, 10-minute expiry, 5 attempts, rate-limited), then fill fields: draw, type or upload a signature. Complete or decline with a reason. Each completion writes a `signature_event` with the version sha256, IP, user agent and auth method. Status moves SENT → PARTIALLY_SIGNED → COMPLETED.
+- [x] **T11 Flattening.** When the last signer completes, an Inngest step draws all field values and signature images onto the frozen version with pdf-lib, flattens any form fields, and stores the result as a new SIGNED version (insert-only) linked to its parent.
+
+Notes from the build:
+- Background jobs (sanitising, flattening, expiry) re-check their tenant context with `verifyJobContext()` inside `withTenant()` and refuse on a mismatch (decision 30 Oct 2026).
+- Wrong OTP attempts are committed and audited even though the request fails, so they count against the limit.
+- `STORAGE_PROVIDER=local` (filesystem) exists for local development and the browser smoke test (`pnpm test:e2e`, Playwright + Chromium, also run in CI).
 
 Exit tests (M1b):
-- [ ] Three signers in sequential order complete. Recipient 2 can't sign before recipient 1. A declined envelope can't be completed.
-- [ ] A signing token for tenant A's envelope can't read or write anything in tenant B. A wrong or expired token, or one whose recipient has already signed or declined, gets 404. Repeated lookups are rate-limited.
-- [ ] OTP brute force is stopped after 5 attempts and rate-limited across requests.
-- [ ] The SIGNED version is a new `document_versions` row; the SENT version's bytes and hash are unchanged.
-- [ ] UPDATE or DELETE on `signature_events` fails for the app role.
+- [x] Three signers in sequential order complete. Recipient 2 can't sign before recipient 1. A declined envelope can't be completed.
+- [x] A signing token for tenant A's envelope can't read or write anything in tenant B. A wrong or expired token, or one whose recipient has already signed or declined, gets 404. Repeated lookups are rate-limited.
+- [x] OTP brute force is stopped after 5 attempts and rate-limited across requests.
+- [x] The SIGNED version is a new `document_versions` row; the SENT version's bytes and hash are unchanged.
+- [x] UPDATE or DELETE on `signature_events` fails for the app role.
 
 ## Part M1c: Seal, certificate of completion and verification
 

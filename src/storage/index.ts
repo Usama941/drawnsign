@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import type { ObjectStore } from "./object-store";
+import { FsObjectStore } from "./fs-store";
 import { VercelBlobObjectStore } from "./vercel-blob-store";
 
 export interface EvidenceObject {
@@ -77,6 +78,13 @@ export class Storage {
 let storage: Storage | undefined;
 
 export function getStorage(): Storage {
+  if (!storage && process.env.STORAGE_PROVIDER === "local") {
+    const root = process.env.LOCAL_STORAGE_DIR ?? ".data/storage";
+    storage = new Storage(
+      new FsObjectStore(`${root}/drafts`),
+      new FsObjectStore(`${root}/evidence`),
+    );
+  }
   if (!storage) {
     const fallback = process.env.BLOB_READ_WRITE_TOKEN;
     const draftsToken = process.env.BLOB_DRAFTS_TOKEN ?? fallback;

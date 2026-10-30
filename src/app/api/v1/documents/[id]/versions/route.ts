@@ -1,6 +1,6 @@
 import { tenantContext } from "@/auth/session";
 import { findDocument, listVersions, SEND, VIEW } from "@/documents/service";
-import { createUpload, uploadMode } from "@/documents/uploads";
+import { createUpload, uploadInfo } from "@/documents/uploads";
 import { idParam } from "@/server/input";
 import { notFound, problem } from "@/server/problem";
 import { route } from "@/server/route";
@@ -17,7 +17,7 @@ export const POST = route({ permission: SEND }, async ({ tx, session, params, au
     objectId: upload.id,
     details: { documentId: doc.id },
   });
-  return Response.json({ upload: { id: upload.id, mode: uploadMode() } }, { status: 201 });
+  return Response.json({ upload: uploadInfo(upload) }, { status: 201 });
 });
 
 export const GET = route({ permission: VIEW }, async ({ tx, session, params }) => {
