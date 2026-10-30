@@ -39,6 +39,7 @@ describe("signing flow in the browser", () => {
         BETTER_AUTH_SECRET: randomBytes(32).toString("hex"),
         SMTP_URL: smtp.url,
         STORAGE_PROVIDER: "local",
+        SEAL_MODE: "development",
         LOCAL_STORAGE_DIR: storageDir,
       },
       stdio: ["ignore", "inherit", "inherit"],

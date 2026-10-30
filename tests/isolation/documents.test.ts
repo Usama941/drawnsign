@@ -105,7 +105,7 @@ describe("document tables", () => {
       admin.query(
         `INSERT INTO document_versions (tenant_id, document_id, version_no, kind, storage_class,
            storage_key, sha256, size_bytes, page_count)
-         VALUES ($1, $2, 0, 'SIGNED', 'DRAFTS', 'k', $3, 1, 1)`,
+         VALUES ($1, $2, 0, 'DRAFT', 'EVIDENCE', 'k', $3, 1, 1)`,
         [tenantA, doc, SHA],
       ),
     ).rejects.toThrow(/storage_class_check/);

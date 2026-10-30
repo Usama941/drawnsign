@@ -57,7 +57,7 @@ export default function PreparePage() {
         type,
         page,
         x: clamp(fx - w / 2, 1 - w),
-        y: clamp(fy - h / 2, 1 - h),
+        y: clamp(fy - h / 2, 0.95 - h),
         width: w,
         height: h,
         options: type === "DROPDOWN" ? ["Yes", "No"] : undefined,
@@ -210,7 +210,7 @@ export default function PreparePage() {
                   setFields((fs) =>
                     fs.map((g) =>
                       g.key === f.key
-                        ? { ...g, x: clamp(x, 1 - g.width), y: clamp(y, 1 - g.height) }
+                        ? { ...g, x: clamp(x, 1 - g.width), y: clamp(y, 0.95 - g.height) }
                         : g,
                     ),
                   );

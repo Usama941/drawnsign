@@ -3,6 +3,7 @@ import { dueEnvelopeExpiries } from "@/db/signing-lookup";
 import type { TenantContext } from "@/db/tenant";
 import { JobContextError } from "@/jobs/context";
 import { expireEnvelope, finalizeEnvelope } from "@/signing/finalize";
+import { SealUnavailableError } from "@/signing/sealer";
 import { getStorage } from "@/storage";
 import { inngest } from "./client";
 
@@ -17,7 +18,9 @@ async function nonRetriable<T>(fn: () => Promise<T>): Promise<T> {
   try {
     return await fn();
   } catch (err) {
-    if (err instanceof JobContextError) throw new NonRetriableError(err.message);
+    if (err instanceof JobContextError || err instanceof SealUnavailableError) {
+      throw new NonRetriableError(err.message);
+    }
     throw err;
   }
 }

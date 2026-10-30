@@ -36,6 +36,8 @@ export const versionKind = pgEnum("version_kind", [
   "CORRECTION",
 ]);
 
+export const sealMode = pgEnum("seal_mode", ["DEVELOPMENT", "PRODUCTION"]);
+
 export const storageClass = pgEnum("storage_class", ["DRAFTS", "EVIDENCE"]);
 
 export const documents = pgTable(
@@ -76,6 +78,11 @@ export const documentVersions = pgTable(
     sizeBytes: bigint("size_bytes", { mode: "number" }).notNull(),
     pageCount: integer("page_count").notNull(),
     createdBy: uuid("created_by"),
+    // Set at insert for sealed (SIGNED) versions. DEVELOPMENT seals are never trusted.
+    sealMode: sealMode("seal_mode"),
+    sealCertificate: text("seal_certificate"),
+    sealedAt: ts("sealed_at"),
+    timestampAt: ts("timestamp_at"),
     createdAt: ts("created_at").notNull().defaultNow(),
   },
   (t) => [
@@ -154,6 +161,38 @@ export const verificationTokens = pgTable(
     foreignKey({
       name: "verification_tokens_version_fk",
       columns: [t.tenantId, t.versionId],
+      foreignColumns: [documentVersions.tenantId, documentVersions.id],
+    }),
+  ],
+);
+
+// Sealed certificate of completion for one signed version (insert-only evidence).
+export const completionCertificates = pgTable(
+  "completion_certificates",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id").notNull(),
+    documentId: uuid("document_id").notNull(),
+    documentVersionId: uuid("document_version_id").notNull(),
+    envelopeId: uuid("envelope_id").notNull(),
+    storageKey: text("storage_key").notNull(),
+    sha256: text("sha256").notNull(),
+    sealMode: sealMode("seal_mode").notNull(),
+    sealCertificate: text("seal_certificate").notNull(),
+    sealedAt: ts("sealed_at").notNull(),
+    createdAt: ts("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    unique("completion_certificates_version_key").on(t.documentVersionId),
+    foreignKey({
+      name: "completion_certificates_document_fk",
+      columns: [t.tenantId, t.documentId],
+      foreignColumns: [documents.tenantId, documents.id],
+    }),
+    // Replaced in SQL by (tenant_id, document_id, document_version_id).
+    foreignKey({
+      name: "completion_certificates_version_fk",
+      columns: [t.tenantId, t.documentVersionId],
       foreignColumns: [documentVersions.tenantId, documentVersions.id],
     }),
   ],

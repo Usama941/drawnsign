@@ -6,4 +6,8 @@ export const EVIDENCE_TABLES = [
   "signature_events",
   "consent_records",
   "document_versions",
+  // Also insert-only, beyond the CLAUDE.md list:
+  "completion_certificates",
+  "verification_tokens",
+  "ledger_anchors",
 ] as const;
