@@ -42,7 +42,9 @@ export async function resolveSession(headers: Headers): Promise<AppSession | nul
   };
 }
 
-export function tenantContext(session: AppSession & { tenant: TenantSession }): TenantContext {
+export function tenantContext(
+  session: AppSession & { tenant: TenantSession },
+): TenantContext & { userId: string } {
   return {
     tenantId: session.tenant.tenantId,
     workspaceType: session.tenant.workspaceType,

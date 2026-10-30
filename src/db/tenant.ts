@@ -7,7 +7,8 @@ import type { WorkspaceType } from "./schema";
 export interface TenantContext {
   tenantId: string;
   workspaceType: WorkspaceType;
-  userId: string;
+  // Null for callers without an account: external signers and system jobs.
+  userId: string | null;
 }
 
 export type Tx = Parameters<Parameters<Database["transaction"]>[0]>[0];
@@ -15,14 +16,14 @@ export type Tx = Parameters<Parameters<Database["transaction"]>[0]>[0];
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function withTenant<T>(ctx: TenantContext, fn: (tx: Tx) => Promise<T>): Promise<T> {
-  if (!UUID.test(ctx.tenantId) || !UUID.test(ctx.userId)) {
+  if (!UUID.test(ctx.tenantId) || (ctx.userId !== null && !UUID.test(ctx.userId))) {
     throw new Error("withTenant: invalid tenant context");
   }
   return getDb().transaction(async (tx) => {
     // is_local = true: the setting ends with this transaction and never leaks to the pool.
     await tx.execute(
       sql`SELECT set_config('app.tenant_id', ${ctx.tenantId}, true),
-                 set_config('app.user_id', ${ctx.userId}, true)`,
+                 set_config('app.user_id', ${ctx.userId ?? ""}, true)`,
     );
     return fn(tx);
   });

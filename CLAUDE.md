@@ -47,4 +47,5 @@ Next.js (App Router) + TypeScript on Vercel, Drizzle ORM, PostgreSQL (Neon), Zod
 - Write or update tests before marking a task done. The isolation suite must pass on every change.
 - Keep migrations as SQL files under `db/migrations`; RLS policies and triggers live in migrations, not app code.
 - Small commits with clear messages. One milestone task per branch.
+- Background jobs may take a tenant id from their event payload, but must re-check it with `verifyJobContext()` and load their target row inside `withTenant()` before doing anything; on a mismatch they refuse to run (`JobContextError`, not retried). Cross-tenant jobs (for example ledger anchoring) go through one narrow `SECURITY DEFINER` function instead.
 - If a request conflicts with the rules above, stop and say so instead of working around it.

@@ -1,8 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { appendAudit } from "@/db/audit";
 import { documents, documentVersions, uploads } from "@/db/schema";
 import { withTenant, type TenantContext, type Tx } from "@/db/tenant";
+import { requireRow, verifyJobContext } from "@/jobs/context";
 import { PdfRejectedError, sanitizePdf } from "@/pdf/sanitize";
 import { objectKey, type Storage } from "@/storage";
 
@@ -20,7 +21,7 @@ export function rawUploadKey(tenantId: string, uploadId: string): string {
 
 export async function createUpload(
   tx: Tx,
-  ctx: TenantContext,
+  ctx: TenantContext & { userId: string },
   documentId: string,
 ): Promise<{ id: string; storageKey: string }> {
   const id = randomUUID();
@@ -49,12 +50,10 @@ export async function processUpload(
 ): Promise<ProcessResult> {
   let rawKey: string | null = null;
   const result = await withTenant(ctx, async (tx): Promise<ProcessResult> => {
-    const [upload] = await tx
-      .select()
-      .from(uploads)
-      .where(and(eq(uploads.id, uploadId), eq(uploads.status, "UPLOADED")))
-      .for("update");
-    if (!upload) return { status: "SKIPPED" };
+    await verifyJobContext(tx, ctx);
+    const [row] = await tx.select().from(uploads).where(eq(uploads.id, uploadId)).for("update");
+    const upload = requireRow(row, "upload");
+    if (upload.status !== "UPLOADED") return { status: "SKIPPED" };
 
     const raw = await storage.getDraft(upload.storageKey);
     if (raw) rawKey = upload.storageKey;
