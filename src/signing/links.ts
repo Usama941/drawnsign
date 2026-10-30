@@ -1,8 +1,7 @@
+import { appBaseUrl } from "@/lib/base-url";
+
 export function appUrl(): string {
-  return (process.env.APP_URL ?? process.env.BETTER_AUTH_URL ?? "http://localhost:3000").replace(
-    /\/$/,
-    "",
-  );
+  return appBaseUrl();
 }
 
 export function signingUrl(token: string): string {

@@ -16,6 +16,7 @@ const GLOBAL_TABLES = [
   "two_factors",
   "passkeys",
   "rate_limits",
+  "dev_outbox",
 ];
 
 describe("row-level security", () => {

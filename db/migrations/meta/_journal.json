@@ -99,6 +99,13 @@
       "when": 1793370247897,
       "tag": "0013_seals_verify",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1793372687731,
+      "tag": "0014_dev_outbox",
+      "breakpoints": true
     }
   ]
 }

@@ -1,4 +1,5 @@
 import nodemailer, { type Transporter } from "nodemailer";
+import { outboxEnabled } from "@/lib/preview";
 
 export interface MailMessage {
   to: string;
@@ -68,6 +69,14 @@ export class SmtpMailer implements Mailer {
   }
 }
 
+// Preview-only (EMAIL_MODE=outbox): stores emails for the /dev/outbox page.
+export class OutboxMailer implements Mailer {
+  async send(message: MailMessage): Promise<void> {
+    const { storeOutboxMail } = await import("@/db/dev-outbox");
+    await storeOutboxMail(message);
+  }
+}
+
 let mailer: Mailer | undefined;
 
 export function getMailer(): Mailer {
@@ -75,7 +84,9 @@ export function getMailer(): Mailer {
     const token = process.env.POSTMARK_SERVER_TOKEN;
     const from = process.env.MAIL_FROM;
     const smtp = process.env.SMTP_URL;
-    if (token && from) {
+    if (outboxEnabled()) {
+      mailer = new OutboxMailer();
+    } else if (token && from) {
       mailer = new PostmarkMailer(token, from);
     } else if (smtp && process.env.VERCEL_ENV !== "production") {
       mailer = new SmtpMailer(smtp, from ?? "drawnsign <dev@localhost>");

@@ -4,6 +4,7 @@ import {
   HttpTimestampAuthority,
   type TimestampAuthority,
 } from "@/crypto/tsa";
+import { appBaseUrl } from "@/lib/base-url";
 import { goLiveGaps } from "@/lib/go-live";
 import { sealModeViolation } from "@/lib/seal-mode";
 import { getStorage } from "@/storage";
@@ -13,13 +14,13 @@ export class SealUnavailableError extends Error {}
 let dev: Promise<{ signer: SealSigner; tsa: TimestampAuthority }> | undefined;
 
 // The sealer for this deployment. SEAL_MODE=development gives the in-memory development seal
-// (refused on Vercel production and on PRODUCTION_HOSTNAME, checked against APP_URL and the
+// (refused on Vercel production and on PRODUCTION_HOSTNAME, checked against the app's base URL and the
 // request host). Anything else needs a production KMS/HSM signer, which does not exist yet,
 // so sealing refuses while goLiveGaps() is non-empty (CLAUDE.md rule 9).
 export async function getSealer(
   requestHost?: string,
 ): Promise<{ signer: SealSigner; tsa: TimestampAuthority }> {
-  const appHost = process.env.APP_URL ? new URL(process.env.APP_URL).host : undefined;
+  const appHost = new URL(appBaseUrl()).host;
   for (const host of [requestHost, appHost]) {
     const violation = sealModeViolation(process.env, host);
     if (violation) throw new SealUnavailableError(violation);

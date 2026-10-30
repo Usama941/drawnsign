@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/client/api";
 
@@ -47,17 +48,28 @@ export default function DocumentsPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const router = useRouter();
   const [reload, setReload] = useState(0);
+  const [noWorkspace, setNoWorkspace] = useState<"none" | "can-create" | null>(null);
   useEffect(() => {
     let cancelled = false;
-    api<{ documents: Doc[] }>("/api/v1/documents").then(
-      (r) => !cancelled && setDocs(r.documents),
-      (e: unknown) => !cancelled && setError(e instanceof Error ? e.message : String(e)),
-    );
+    fetch("/api/v1/documents", { credentials: "same-origin" }).then(async (res) => {
+      if (cancelled) return;
+      if (res.status === 401) return router.push("/login");
+      if (res.status === 403) {
+        const { enabled } = (await (await fetch("/api/preview/workspace")).json()) as {
+          enabled: boolean;
+        };
+        return !cancelled && setNoWorkspace(enabled ? "can-create" : "none");
+      }
+      if (!res.ok) return setError(`could not load documents (${res.status})`);
+      setNoWorkspace(null);
+      setDocs(((await res.json()) as { documents: Doc[] }).documents);
+    });
     return () => {
       cancelled = true;
     };
-  }, [reload]);
+  }, [reload, router]);
 
   async function create(e: React.FormEvent) {
     e.preventDefault();
@@ -78,6 +90,44 @@ export default function DocumentsPage() {
     } finally {
       setBusy(false);
     }
+  }
+
+  if (noWorkspace === "none") {
+    return (
+      <main>
+        <h1>Documents</h1>
+        <p>Your account is not part of a workspace yet.</p>
+      </main>
+    );
+  }
+  if (noWorkspace === "can-create") {
+    return (
+      <main className="stack" style={{ maxWidth: 480 }}>
+        <h1>Create a test workspace</h1>
+        <p className="banner">
+          Preview deployment: you can create a workspace for yourself to try the product.
+        </p>
+        <button
+          type="button"
+          onClick={async () => {
+            const res = await fetch("/api/preview/workspace", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ name: "My test workspace" }),
+            });
+            if (!res.ok) return setError(`could not create the workspace (${res.status})`);
+            setReload((n) => n + 1);
+          }}
+        >
+          Create my workspace
+        </button>
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
+      </main>
+    );
   }
 
   return (
@@ -127,6 +177,11 @@ export default function DocumentsPage() {
               <td>
                 {d.status === "DRAFT" && (
                   <Link href={`/documents/${d.id}/prepare`}>Prepare and send</Link>
+                )}
+                {d.status === "COMPLETED" && (
+                  <a href={`/api/v1/documents/${d.id}/file`} download={`${d.publicId}.pdf`}>
+                    Download signed PDF
+                  </a>
                 )}
               </td>
             </tr>

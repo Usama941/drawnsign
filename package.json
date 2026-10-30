@@ -9,7 +9,7 @@
   },
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "tsx db/migrate.ts --if-configured && next build",
     "start": "next start",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
