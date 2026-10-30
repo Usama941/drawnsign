@@ -50,7 +50,7 @@ function createAuth() {
               data: {
                 ...session,
                 activeTenantId: own.length === 1 ? own[0]!.tenantId : null,
-                mfaVerified: sessionCreatedWithMfa(ctx?.path),
+                mfaVerified: sessionCreatedWithMfa(ctx?.path, ctx?.body),
               },
             };
           },

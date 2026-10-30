@@ -21,17 +21,17 @@ Work through the parts in order. Each part ends with its own exit tests and is m
 
 ## Part M1a: Documents, upload and sanitising
 
-- [ ] **T1 Schema.** `documents`, `document_versions` (insert-only evidence table), and `verification_tokens`. Every table gets `tenant_id`, forced RLS and composite `(tenant_id, parent_id)` foreign keys, as in PRD section 10. `documents.public_id` = `DOC-` + 10 Crockford base32 characters. Verification tokens are 128-bit, stored only as a hash, bound to one document version, and expire at the document's retention end (CLAUDE.md rule 2).
-- [ ] **T2 Upload.** Client upload token route (`customer.documents.send` / `company.documents.send`). The token restricts the path to the session tenant's prefix, PDF content type only, and 25 MB. An Inngest step fetches the blob, enforces the limits and sanitises the file (see constraints). It then stores the clean bytes as a DRAFT version (sha256, page count) and deletes the raw upload. An upload that fails sanitising is rejected and audited.
-- [ ] **T3 Documents API.** `POST /documents`, `POST /documents/{id}/versions`, `GET /documents/{id}`, `GET /documents/{id}/versions`. DRAFT versions are append-only; there is no edit in place.
-- [ ] **T4 Mail in development.** `SmtpMailer` plus Mailpit, selected by `SMTP_URL`. Documented in `docs/runbooks/local-dev.md`.
-- [ ] **T5 Passkey MFA test (carried over from M0).** A software WebAuthn authenticator in the isolation suite (P-256 key, "none" attestation) registers a passkey, signs in with it, and checks that the session is `mfa_verified` and that a company manager is MFA-satisfied. A password-only sign-in by the same user must still not be satisfied.
+- [x] **T1 Schema.** `documents`, `document_versions` (insert-only evidence table), and `verification_tokens`. Every table gets `tenant_id`, forced RLS and composite `(tenant_id, parent_id)` foreign keys, as in PRD section 10. `documents.public_id` = `DOC-` + 10 Crockford base32 characters. Verification tokens are 128-bit, stored only as a hash, bound to one document version, and expire at the document's retention end (CLAUDE.md rule 2).
+- [x] **T2 Upload.** Client upload token route (`customer.documents.send` / `company.documents.send`). The token restricts the path to the session tenant's prefix, PDF content type only, and 25 MB. An Inngest step fetches the blob, enforces the limits and sanitises the file (see constraints). It then stores the clean bytes as a DRAFT version (sha256, page count) and deletes the raw upload. An upload that fails sanitising is rejected and audited.
+- [x] **T3 Documents API.** `POST /documents`, `POST /documents/{id}/versions`, `GET /documents/{id}`, `GET /documents/{id}/versions`. DRAFT versions are append-only; there is no edit in place.
+- [x] **T4 Mail in development.** `SmtpMailer` plus Mailpit, selected by `SMTP_URL`. Documented in `docs/runbooks/local-dev.md`.
+- [x] **T5 Passkey MFA test (carried over from M0).** A software WebAuthn authenticator in the isolation suite (P-256 key, "none" attestation) registers a passkey, signs in with it, and checks that the session is `mfa_verified` and that a company manager is MFA-satisfied. A password-only sign-in by the same user must still not be satisfied. *(Added: a passkey sign-in without user verification (PIN or biometric) also does not count as MFA; Better Auth accepts such sign-ins, so `src/auth/mfa.ts` checks the UV flag.)*
 
 Exit tests (M1a):
-- [ ] A PDF with JavaScript, an OpenAction, an embedded file and a launch action comes out with none of them. Encrypted, oversized, over-200-page and malformed PDFs are rejected.
-- [ ] Tenant A cannot read, list or download tenant B's documents or versions via the API or the app role, and its upload tokens can't write under B's prefix.
-- [ ] UPDATE or DELETE on `document_versions` fails for the app role.
-- [ ] The passkey sign-in test passes.
+- [x] A PDF with JavaScript, an OpenAction, an embedded file and a launch action comes out with none of them. Encrypted, oversized, over-200-page and malformed PDFs are rejected.
+- [x] Tenant A cannot read, list or download tenant B's documents or versions via the API or the app role, and its upload tokens can't write under B's prefix.
+- [x] UPDATE or DELETE on `document_versions` fails for the app role.
+- [x] The passkey sign-in test passes.
 
 ## Part M1b: Envelopes, fields and signing
 
