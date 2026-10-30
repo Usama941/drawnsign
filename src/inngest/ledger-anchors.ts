@@ -11,5 +11,3 @@ export const ledgerAnchors = inngest.createFunction(
     return { date: yesterday, anchored };
   },
 );
-
-export const functions = [ledgerAnchors];

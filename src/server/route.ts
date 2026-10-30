@@ -1,7 +1,9 @@
 import { can, type Permission } from "@/auth/permissions";
+import type { WorkspaceType } from "@/db/schema";
 import { resolveSession, tenantContext, type AppSession, type TenantSession } from "@/auth/session";
 import { appendAudit } from "@/db/audit";
 import { withTenant, type Tx } from "@/db/tenant";
+import { InputError } from "./input";
 import { forbidden, notFound, unauthorized } from "./problem";
 
 export type TenantAppSession = AppSession & { tenant: TenantSession };
@@ -22,10 +24,21 @@ export interface RouteContext {
   // Describes the audit entry written for mutating requests. Never put secrets or document
   // content in details.
   audit(info: AuditInfo): void;
+  // Runs after the transaction commits (for example, enqueueing a background job that must
+  // see the committed rows). Not run if the request rolls back.
+  afterCommit(fn: () => Promise<void>): void;
 }
 
+// A single permission, or one per workspace type for shared routes whose catalogues name the
+// same action differently.
+export type RoutePermission = Permission | Partial<Record<WorkspaceType, Permission>>;
+
 export interface RouteOptions {
-  permission?: Permission;
+  permission?: RoutePermission;
+}
+
+function permissionFor(p: RoutePermission, type: WorkspaceType): Permission | undefined {
+  return typeof p === "string" ? p : p[type];
 }
 
 type NextHandler = (
@@ -61,21 +74,26 @@ function wrap(
     }
     if (!session) return unauthorized();
     if (!session.tenant) return forbidden();
-    if (options.permission && !can(session, options.permission)) return forbidden();
+    if (options.permission) {
+      const permission = permissionFor(options.permission, session.tenant.workspaceType);
+      if (!permission || !can(session, permission)) return forbidden();
+    }
 
     const tenantSession = session as TenantAppSession;
     const params = (await ctx?.params) ?? {};
     const mutating = !READ_ONLY_METHODS.has(req.method);
     const audit: AuditInfo = {};
+    const afterCommit: (() => Promise<void>)[] = [];
 
     try {
-      return await withTenant(tenantContext(tenantSession), async (tx) => {
+      const response = await withTenant(tenantContext(tenantSession), async (tx) => {
         const res = await handler({
           req,
           session: tenantSession,
           tx,
           params,
           audit: (info) => Object.assign(audit, info),
+          afterCommit: (fn) => afterCommit.push(fn),
         });
         if (!res.ok) throw new Rollback(res);
         // Every mutating call writes one audit entry in the same transaction (CLAUDE.md rule 7).
@@ -91,8 +109,11 @@ function wrap(
         }
         return res;
       });
+      for (const fn of afterCommit) await fn();
+      return response;
     } catch (err) {
       if (err instanceof Rollback) return err.response;
+      if (err instanceof InputError) return err.response;
       throw err;
     }
   };

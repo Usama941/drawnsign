@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "@better-auth/passkey": "1.7.14",
+    "@cantoo/pdf-lib": "^2.11.1",
     "@vercel/blob": "^2.8.2",
     "better-auth": "1.7.14",
     "drizzle-orm": "~0.45.4",
