@@ -335,6 +335,8 @@ Every completed version is hashed, sealed with a platform certificate and timest
 
 **Rule set enforced in code**: a seal on version N attests only the bytes of version N; the verify page must never display a green "authentic signed document" result for a version that was not itself signed.
 
+**Verify-page lookup and RLS.** The public verify page has no tenant session, so it reads through one narrow database function (`SECURITY DEFINER`, owned by a dedicated role, executable by the app role). The function bypasses RLS only to find a single version by public ID and token (compared against the stored token hash), and returns only the public fields in the table above (for COMPANY\_MANAGED documents, only the restricted notice unless the private-mode check passes). It never returns document content, amendment text, reasons or admin names, and no other query path bypasses RLS.
+
 **Private verification mode for COMPANY\_MANAGED documents (founder decision).** The QR and URL stay on every page, but the verify page requires sign-in as an in-scope admin or manager, or as the document's own employee. Anyone else sees only that it is a confidential internal record and verification is restricted. Integrity checks (hash, seal, timestamp, amendment status) are unchanged. An admin can issue a time-limited verification link for a named outside party, such as a lawyer or tribunal; every issuance is logged and appears in the monthly reports. The page footer reads "Confidential internal record" next to the document ID. PUBLIC\_CUSTOMER documents keep the public verify page.
 
 ## 13. Monthly reporting architecture
