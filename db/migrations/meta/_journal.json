@@ -57,6 +57,20 @@
       "when": 1793363852813,
       "tag": "0007_audit_ledger",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793364895704,
+      "tag": "0008_documents",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793364925945,
+      "tag": "0009_documents_guards",
+      "breakpoints": true
     }
   ]
 }
