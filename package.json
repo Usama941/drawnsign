@@ -2,6 +2,7 @@
   "name": "drawnsign",
   "version": "0.0.0",
   "private": true,
+  "type": "module",
   "packageManager": "pnpm@10.28.0",
   "engines": {
     "node": ">=22"
@@ -14,24 +15,30 @@
     "format": "prettier --write .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:isolation": "vitest run --config vitest.isolation.config.ts"
+    "test:isolation": "vitest run --config vitest.isolation.config.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx db/migrate.ts"
   },
   "dependencies": {
+    "drizzle-orm": "~0.45.4",
     "next": "16.4.3",
+    "pg": "^8.23.1",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/node": "^22.20.5",
+    "@types/pg": "^8.23.1",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "drizzle-kit": "~0.31.11",
     "eslint": "^9.39.5",
     "eslint-config-next": "16.4.3",
     "prettier": "^3.9.10",
+    "tsx": "^4.23.15",
     "typescript": "6.0.3",
     "typescript-eslint": "^8.72.1",
-    "vite-tsconfig-paths": "^6.1.1",
     "vitest": "^5.0.5"
   }
 }
