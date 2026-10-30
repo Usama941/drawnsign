@@ -229,7 +229,7 @@ Rules the flow enforces: the proposer can never approve their own amendment; a C
 
 ## 10–11. Database schema and document versioning
 
-Postgres is the system of record; every tenant-scoped table carries `tenant_id` with row-level security, and evidence tables are insert-only (UPDATE/DELETE revoked from the application role).
+Postgres is the system of record; every tenant-scoped table carries `tenant_id` with row-level security, including child tables that could reach the tenant through a parent. Child rows reference their parent with a composite foreign key `(tenant_id, parent_id)`, so a row can never point at another tenant's parent. Evidence tables are insert-only (UPDATE/DELETE revoked from the application role).
 
 **10. Core tables**
 
@@ -237,26 +237,33 @@ Postgres is the system of record; every tenant-scoped table carries `tenant_id` 
 | --- | --- | --- | --- |
 | Tenancy | `tenants` | id, name, workspace\_type (enum, immutable), region, retention\_years, created\_at | workspace\_type set once by trigger |
 | Identity | `users` | id, email, mfa\_methods, status | global identity |
-| Identity | `memberships` | user\_id, tenant\_id, role, team\_scope\[\] | role must exist in the catalogue for the tenant's type |
-| Identity | `invitations` | id, tenant\_id, email, role, token\_hash, expires\_at, accepted\_at | single use |
-| Consent | `agreement_versions` | id, tenant\_id, kind (MANAGER\_AGREEMENT, EMPLOYEE\_CONSENT, CUSTOMER\_TOS, DPA, E\_RECORDS), version, body\_sha256, effective\_at | immutable once published |
-| Consent | `consent_records` | id, tenant\_id, user\_id, agreement\_version\_id, action (ACCEPT, WITHDRAW), ts, tsa\_token, ip, user\_agent, ui\_text\_sha256 | insert-only |
-| Documents | `documents` | id (DOC-xxxxxx public id), tenant\_id, title, owner\_id, status, current\_version\_id, legal\_hold | the logical document |
-| Documents | `document_versions` | id, document\_id, version\_no, parent\_version\_id, kind (DRAFT, SENT, SIGNED, AMENDED, CORRECTION), storage\_key, sha256, page\_count, created\_by, created\_at | insert-only |
-| Documents | `version_text_index` | version\_id, block\_id, page, bbox, text, text\_sha256 | extracted text used for diffs |
-| Signing | `envelopes` | id, document\_version\_id, order\_mode, expires\_at, status | binds signers to ONE version |
-| Signing | `recipients` | id, envelope\_id, user\_id/email, role, routing\_order, status |  |
-| Signing | `fields` | id, envelope\_id, recipient\_id, type, page, bbox, value\_ref |  |
-| Signing | `signature_events` | id, envelope\_id, recipient\_id, version\_sha256, ts, tsa\_token, ip, ua, auth\_method | insert-only |
-| Signing | `completion_certificates` | id, document\_version\_id, cert\_storage\_key, pades\_signature\_ref, sealed\_at |  |
-| Amendments (COMPANY\_MANAGED only) | `amendments` | id, tenant\_id, document\_id, from\_version\_id, to\_version\_id, class (A/B/C), reason, proposed\_by, was\_signed\_before, requires\_approval, status | CHECK tenant is COMPANY\_MANAGED |
-| Amendments | `amendment_changes` | id, amendment\_id, block\_id, original\_text, updated\_text, page, bbox | one row per textual change |
-| Amendments | `amendment_events` | id, amendment\_id, type (PROPOSED, APPROVED, REJECTED, APPLIED, NOTIFIED, ACKNOWLEDGED, DISPUTED, RESOLVED, CORRECTED, RE\_SIGNED), actor\_id, ts, payload, consent\_record\_ids\[\] | insert-only |
+| Identity | `memberships` | user\_id, tenant\_id, role, team\_scope\[\] | role must exist in the catalogue for the tenant's type; FK tenant\_id → tenants |
+| Identity | `invitations` | id, tenant\_id, email, role, token\_hash, expires\_at, accepted\_at | single use; FK tenant\_id → tenants |
+| Consent | `agreement_versions` | id, tenant\_id, kind (MANAGER\_AGREEMENT, EMPLOYEE\_CONSENT, CONFIDENTIALITY, CUSTOMER\_TOS, DPA, E\_RECORDS), version, body\_sha256, effective\_at | immutable once published; UNIQUE (tenant\_id, id) |
+| Consent | `consent_records` | id, tenant\_id, user\_id, agreement\_version\_id, action (ACCEPT, WITHDRAW), ts, tsa\_token, ip, user\_agent, ui\_text\_sha256 | insert-only; FK (tenant\_id, agreement\_version\_id) → agreement\_versions |
+| Documents | `documents` | id (DOC-xxxxxx public id), tenant\_id, title, owner\_id, status, current\_version\_id, legal\_hold | the logical document; UNIQUE (tenant\_id, id); FK (tenant\_id, current\_version\_id) → document\_versions |
+| Documents | `document_versions` | id, tenant\_id, document\_id, version\_no, parent\_version\_id, kind (DRAFT, SENT, SIGNED, AMENDED, CORRECTION), storage\_key, sha256, page\_count, created\_by, created\_at | insert-only; UNIQUE (tenant\_id, id); FK (tenant\_id, document\_id) → documents; FK (tenant\_id, parent\_version\_id) → document\_versions |
+| Documents | `version_text_index` | tenant\_id, version\_id, block\_id, page, bbox, text, text\_sha256 | extracted text used for diffs; FK (tenant\_id, version\_id) → document\_versions |
+| Signing | `envelopes` | id, tenant\_id, document\_version\_id, order\_mode, expires\_at, status | binds signers to ONE version; UNIQUE (tenant\_id, id); FK (tenant\_id, document\_version\_id) → document\_versions |
+| Signing | `recipients` | id, tenant\_id, envelope\_id, user\_id/email, role, routing\_order, status | UNIQUE (tenant\_id, id); FK (tenant\_id, envelope\_id) → envelopes |
+| Signing | `fields` | id, tenant\_id, envelope\_id, recipient\_id, type, page, bbox, value\_ref | FK (tenant\_id, envelope\_id) → envelopes; FK (tenant\_id, recipient\_id) → recipients |
+| Signing | `signature_events` | id, tenant\_id, envelope\_id, recipient\_id, version\_sha256, ts, tsa\_token, ip, ua, auth\_method | insert-only; FK (tenant\_id, envelope\_id) → envelopes; FK (tenant\_id, recipient\_id) → recipients |
+| Signing | `completion_certificates` | id, tenant\_id, document\_version\_id, cert\_storage\_key, pades\_signature\_ref, sealed\_at | FK (tenant\_id, document\_version\_id) → document\_versions |
+| Amendments (COMPANY\_MANAGED only) | `amendments` | id, tenant\_id, document\_id, from\_version\_id, to\_version\_id, class (A/B/C), reason, proposed\_by, was\_signed\_before, requires\_approval, status | CHECK tenant is COMPANY\_MANAGED; UNIQUE (tenant\_id, id); FK (tenant\_id, document\_id) → documents; FK (tenant\_id, from\_version\_id) and (tenant\_id, to\_version\_id) → document\_versions |
+| Amendments | `amendment_changes` | id, tenant\_id, amendment\_id, block\_id, original\_text, updated\_text, page, bbox | one row per textual change; FK (tenant\_id, amendment\_id) → amendments |
+| Amendments | `amendment_events` | id, tenant\_id, amendment\_id, type (PROPOSED, APPROVED, REJECTED, APPLIED, NOTIFIED, ACKNOWLEDGED, DISPUTED, RESOLVED, CORRECTED, RE\_SIGNED), actor\_id, ts, payload, consent\_record\_ids\[\] | insert-only; FK (tenant\_id, amendment\_id) → amendments |
 | Audit | `audit_ledger` | seq, tenant\_id, ts, actor\_id, action, object\_type, object\_id, payload\_sha256, prev\_hash, entry\_hash | hash-chained, insert-only |
 | Audit | `ledger_anchors` | date, tenant\_id, last\_seq, root\_hash, external\_ref | daily anchor copied to a separate locked bucket |
 | Reporting | `report_runs` | id, tenant\_id, period, audience (ADMIN/MANAGER/EMPLOYEE), recipient\_id, pdf\_key, csv\_key, sha256, emailed\_at |  |
-| Verification | `verification_tokens` | public\_id, document\_id, version\_id, created\_at | non-guessable slug for URL/QR |
-| Billing | `subscriptions`, `plans`, `usage_counters`, `invoices` | Stripe ids, seats, envelope quota | PUBLIC\_CUSTOMER |
+| Verification | `verification_tokens` | public\_id, tenant\_id, document\_id, version\_id, created\_at | non-guessable slug for URL/QR; FK (tenant\_id, document\_id) → documents; FK (tenant\_id, version\_id) → document\_versions |
+| Billing | `subscriptions`, `plans`, `usage_counters`, `invoices` | tenant\_id (except `plans`, which is global), Stripe ids, seats, envelope quota | PUBLIC\_CUSTOMER |
+
+Tenant columns and foreign keys:
+
+- Only `users` (global identity), `tenants` and `plans` have no `tenant_id`. Every other table has `tenant_id NOT NULL` and the `tenant_isolation` RLS policy below.
+- A child table never relies on its parent for tenant scoping. It stores its own `tenant_id` and has its own RLS policy.
+- Every parent table has `UNIQUE (tenant_id, id)`. Every reference from a child to a parent is a composite foreign key `(tenant_id, parent_id) REFERENCES parent (tenant_id, id)`. A plain `parent_id → parent(id)` foreign key is not allowed, because it would let a row in tenant A point at a parent in tenant B.
+- `amendment_changes` and `amendment_events` reach `amendments` through the composite key, so they can only exist in COMPANY\_MANAGED tenants as well.
 
 Key isolation rules in SQL:
 
@@ -264,6 +271,11 @@ Key isolation rules in SQL:
 ALTER TABLE documents ENABLE ROW LEVEL SECURITY;
 CREATE POLICY tenant_isolation ON documents
   USING (tenant_id = current_setting('app.tenant_id')::uuid);
+
+-- parent exposes (tenant_id, id); child references both columns
+ALTER TABLE documents ADD CONSTRAINT documents_tenant_id_id_key UNIQUE (tenant_id, id);
+ALTER TABLE document_versions ADD CONSTRAINT document_versions_document_fk
+  FOREIGN KEY (tenant_id, document_id) REFERENCES documents (tenant_id, id);
 
 -- amendments may only exist in COMPANY_MANAGED tenants
 CREATE FUNCTION assert_company_managed() RETURNS trigger AS $$
