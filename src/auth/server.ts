@@ -1,3 +1,5 @@
+// Some WebAuthn/X.509 dependencies need the Reflect metadata polyfill loaded first.
+import "reflect-metadata";
 import { passkey } from "@better-auth/passkey";
 import { betterAuth } from "better-auth";
 import { nextCookies } from "better-auth/next-js";

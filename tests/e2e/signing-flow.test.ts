@@ -1,12 +1,13 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PDFDocument, StandardFonts } from "@cantoo/pdf-lib";
 import { Client } from "pg";
 import { chromium, type Browser } from "playwright";
 import { afterAll, beforeAll, describe, expect, inject, it } from "vitest";
+import { readQr, renderPage } from "../qr";
 import { startSmtpCapture } from "./smtp-capture";
 
 const PORT = 3100;
@@ -155,12 +156,39 @@ describe("signing flow in the browser", () => {
 
     const state = (
       await admin.query(
-        `SELECT e.status, d.status AS doc, v.kind
+        `SELECT e.status, d.status AS doc, v.kind, v.storage_key
          FROM envelopes e JOIN documents d ON d.id = e.document_id
          LEFT JOIN document_versions v ON v.id = e.signed_version_id
          WHERE d.title = 'E2E Agreement'`,
       )
     ).rows[0];
-    expect(state).toEqual({ status: "COMPLETED", doc: "COMPLETED", kind: "SIGNED" });
+    expect(state).toMatchObject({ status: "COMPLETED", doc: "COMPLETED", kind: "SIGNED" });
+
+    // Scan the QR on the signed PDF and open the verify page, as a third party would.
+    const signedPdf = await readFile(join(storageDir, "evidence", state.storage_key));
+    const verifyUrl = readQr(signedPdf);
+    renderPage(signedPdf, join(SHOTS, "09-signed-pdf"));
+    expect(verifyUrl).toMatch(new RegExp(`^${BASE}/verify/DOC-[0-9A-Z]{10}\\?t=`));
+    const verifier = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    await verifier.goto(verifyUrl);
+    await verifier.getByText("Development seal - not a trusted signature.").waitFor();
+    await verifier
+      .getByRole("status")
+      .getByText(/Signed version \d+ \(development seal\)/)
+      .waitFor();
+    await shot(verifier, "07-verify-page");
+
+    await verifier
+      .getByLabel("PDF to check")
+      .setInputFiles({ name: "signed.pdf", mimeType: "application/pdf", buffer: signedPdf });
+    await verifier.getByText(/Matches signed version \d+ \(development seal\)/).waitFor();
+    await shot(verifier, "08-upload-to-verify");
+
+    const altered = Buffer.from(signedPdf);
+    altered[200] = altered[200]! ^ 1;
+    await verifier
+      .getByLabel("PDF to check")
+      .setInputFiles({ name: "altered.pdf", mimeType: "application/pdf", buffer: altered });
+    await verifier.getByText("No match.").waitFor();
   });
 });

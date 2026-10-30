@@ -31,7 +31,7 @@ export type NextHandler = (
 ) => Promise<Response>;
 
 export const ROUTER = Symbol.for("drawnsign.router");
-export type RouterKind = "v1" | "company" | "signing";
+export type RouterKind = "v1" | "company" | "signing" | "verify";
 export type WrappedHandler = NextHandler & { [ROUTER]: RouterKind };
 
 function permissionFor(p: RoutePermission, type: WorkspaceType): Permission | undefined {
