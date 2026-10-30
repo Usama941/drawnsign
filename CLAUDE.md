@@ -20,13 +20,18 @@ Full spec: `docs/PRD.md`. Current milestone tasks: `docs/milestones/`.
 
 ## Stack
 
-Next.js (App Router) + TypeScript, Drizzle ORM, PostgreSQL (Neon), Zod, Better Auth, Inngest, Postmark, Stripe, AWS S3 (Object Lock) + KMS. PDF work runs in a separate worker service, never in Vercel functions.
+Next.js (App Router) + TypeScript on Vercel, Drizzle ORM, PostgreSQL (Neon), Zod, Better Auth, Inngest, Postmark, Stripe.
+
+- Storage: Vercel Blob (private blobs) for now, behind the provider-neutral `ObjectStore` in `src/storage`. Evidence is write-once and the app has no delete path.
+- Signing: the provider-neutral `Signer` in `src/crypto/signer.ts`. No production sealing key exists yet; until it does, every seal is a development seal and must be shown as one.
+- PDF work: for now runs on Vercel in pure JavaScript (no native binaries). Steps that need native tools are listed in the current milestone file with their later fix.
+- Before go-live: evidence moves to locked write-once storage (S3 Object Lock in compliance mode or equivalent), and the sealing key moves to a KMS/HSM. `goLiveGaps()` in `src/lib/go-live.ts` must return an empty list before any real document is signed (PRD "Pre-go-live requirements").
 
 ## Commands
 
 - Install: `pnpm install`
 - Dev: `pnpm dev`
-- Test: `pnpm test` (unit) and `pnpm test:isolation` (cross-tenant + immutability suite)
+- Test: `pnpm test` (unit) and `pnpm test:isolation` (cross-tenant + immutability suite; needs `DATABASE_URL_ADMIN` pointing at a throwaway Postgres, which it rebuilds)
 - DB migrations: `pnpm db:generate` then `pnpm db:migrate`
 - Lint and types: `pnpm lint && pnpm typecheck`
 
