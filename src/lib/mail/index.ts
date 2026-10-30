@@ -1,3 +1,5 @@
+import nodemailer, { type Transporter } from "nodemailer";
+
 export interface MailMessage {
   to: string;
   subject: string;
@@ -44,14 +46,39 @@ export class PostmarkMailer implements Mailer {
   }
 }
 
+// Development: sends to a local catcher such as Mailpit (SMTP_URL=smtp://localhost:1025),
+// so OTP, invite and signing emails can be read at http://localhost:8025 without Postmark.
+export class SmtpMailer implements Mailer {
+  private readonly transport: Transporter;
+
+  constructor(
+    url: string,
+    private readonly from: string,
+  ) {
+    this.transport = nodemailer.createTransport(url);
+  }
+
+  async send(message: MailMessage): Promise<void> {
+    await this.transport.sendMail({
+      from: this.from,
+      to: message.to,
+      subject: message.subject,
+      text: message.text,
+    });
+  }
+}
+
 let mailer: Mailer | undefined;
 
 export function getMailer(): Mailer {
   if (!mailer) {
     const token = process.env.POSTMARK_SERVER_TOKEN;
     const from = process.env.MAIL_FROM;
+    const smtp = process.env.SMTP_URL;
     if (token && from) {
       mailer = new PostmarkMailer(token, from);
+    } else if (smtp && process.env.NODE_ENV !== "production") {
+      mailer = new SmtpMailer(smtp, from ?? "drawnsign <dev@localhost>");
     } else if (process.env.NODE_ENV === "production") {
       throw new Error("POSTMARK_SERVER_TOKEN and MAIL_FROM must be set in production");
     } else {
