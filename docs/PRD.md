@@ -522,6 +522,9 @@ Build the shared signing engine first, then the company workspace for internal g
 - [ ] **Locked storage** for SIGNED versions, certificates, reports and ledger anchors: S3 Object Lock in compliance mode, or an equivalent write-once store, with retention set per tenant policy (section 11).
 - [ ] **Hardware-held sealing key** in a cloud KMS/HSM (FIPS 140-2 L3), signing via its API so the private key never leaves it (section 12). No software key may be used to seal a production document.
 - [ ] Ledger anchors moved to a separate locked store owned by a different cloud account (T2 in section 15).
+- [ ] PAdES-B-LT (embedded revocation data) with the real certificate chain; M1 seals are B-T only.
+- [ ] Before public launch (M3): PDF sanitising moved from pure JavaScript on Vercel into an isolated worker with no network, using qpdf and a Ghostscript re-render (threat T9 in section 15).
+- [ ] `SEAL_MODE=development` unset everywhere; the app refuses to build or start with it in a Vercel production deployment or on `PRODUCTION_HOSTNAME`.
 
 The weeks are an estimate for 2–3 engineers and assume the agreement texts are drafted in parallel by counsel; a commercial PDF SDK would cut M1 by roughly 4 weeks.
 
