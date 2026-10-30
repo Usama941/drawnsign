@@ -1,6 +1,6 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PDFDocument, StandardFonts } from "@cantoo/pdf-lib";
@@ -10,6 +10,13 @@ import { afterAll, beforeAll, describe, expect, inject, it } from "vitest";
 import { startSmtpCapture } from "./smtp-capture";
 
 const PORT = 3100;
+const SHOTS = join(process.cwd(), "docs/screenshots");
+
+// Saves a full-page screenshot of a main screen into docs/screenshots (committed for review).
+async function shot(page: import("playwright").Page, name: string) {
+  await page.waitForLoadState("networkidle");
+  await page.screenshot({ path: join(SHOTS, `${name}.png`), fullPage: true });
+}
 const BASE = `http://localhost:${PORT}`;
 
 describe("signing flow in the browser", () => {
@@ -72,6 +79,7 @@ describe("signing flow in the browser", () => {
       [tenant.id, user.id],
     );
 
+    await mkdir(SHOTS, { recursive: true });
     browser = await chromium.launch();
   });
 
@@ -89,8 +97,9 @@ describe("signing flow in the browser", () => {
     pdf.addPage([600, 800]).drawText("Please sign below.", { x: 50, y: 700, size: 18, font });
     const bytes = Buffer.from(await pdf.save());
 
-    const sender = await browser.newPage();
+    const sender = await browser.newPage({ viewport: { width: 1280, height: 900 } });
     await sender.goto(`${BASE}/login`);
+    await shot(sender, "01-sign-in");
     await sender.getByLabel("Email").fill(email);
     await sender.getByLabel("Password").fill(password);
     await sender.getByRole("button", { name: "Sign in" }).click();
@@ -101,6 +110,8 @@ describe("signing flow in the browser", () => {
       .getByLabel("PDF file")
       .setInputFiles({ name: "agreement.pdf", mimeType: "application/pdf", buffer: bytes });
     await sender.getByRole("button", { name: "Upload" }).click();
+    await sender.getByRole("link", { name: "Prepare and send" }).waitFor();
+    await shot(sender, "02-documents-list");
     await sender.getByRole("link", { name: "Prepare and send" }).click();
 
     await sender.getByLabel("Recipient 1 name").fill("Grace Signer");
@@ -109,13 +120,16 @@ describe("signing flow in the browser", () => {
     await page1.waitFor();
     await page1.click({ position: { x: 300, y: 600 } });
     await expect(sender.locator('[data-field="SIGNATURE"]').count()).resolves.toBe(1);
+    await shot(sender, "03-field-editor");
     await sender.getByRole("button", { name: "Send for signature" }).click();
     await sender.waitForURL(`${BASE}/documents`);
     await sender.getByText("SENT").waitFor();
 
     const token = (await smtp.waitFor("grace@example.test", /\/sign\/([A-Za-z0-9_-]{22})/))[1]!;
-    const signer = await browser.newPage();
+    const signer = await browser.newPage({ viewport: { width: 1280, height: 900 } });
     await signer.goto(`${BASE}/sign/${token}`);
+    await signer.getByRole("button", { name: "Continue" }).waitFor();
+    await shot(signer, "04-signing-consent");
     await signer.getByRole("checkbox").check();
     await signer.getByRole("button", { name: "Continue" }).click();
     const before = smtp.mails.length;
@@ -132,8 +146,11 @@ describe("signing flow in the browser", () => {
     await signer.mouse.move(box.x + 120, box.y + 30, { steps: 8 });
     await signer.mouse.move(box.x + 220, box.y + 90, { steps: 8 });
     await signer.mouse.up();
+    await signer.locator('[data-page="1"] img').waitFor();
+    await shot(signer, "05-signing-page");
     await signer.getByRole("button", { name: "Finish and sign" }).click();
     await signer.getByText("Thank you, you have signed").waitFor();
+    await shot(signer, "06-signed-result");
 
     const state = (
       await admin.query(
