@@ -4,8 +4,7 @@ import { afterAll, beforeAll, describe, expect, inject, it, vi } from "vitest";
 import { closeDb } from "@/db/client";
 import { DEV_SEAL_MARK } from "@/pdf/footer";
 import { finalizeEnvelope } from "@/signing/finalize";
-import { MemoryObjectStore } from "@/storage/memory-store";
-import { setStorageForTests, Storage } from "@/storage";
+import { setStorageForTests } from "@/storage";
 import { pdfText, readQr } from "../qr";
 import {
   configureAppEnv,
@@ -14,15 +13,14 @@ import {
   signIn,
   signUpAndVerify,
 } from "./auth-helpers";
-import { connect } from "./helpers";
+import { connect, sharedStorage } from "./helpers";
 import { call } from "./http";
 import { lastLinkTo, sendEnvelope, signAll } from "./signing-helpers";
 
 const verifyRoute = import("@/app/api/v1/verify/[publicId]/route");
 const hashRoute = import("@/app/api/v1/verify/[publicId]/hash/route");
 
-const evidence = new MemoryObjectStore(true);
-const storage = new Storage(new MemoryObjectStore(), evidence);
+const { evidence, storage } = sharedStorage();
 const sha = (b: Uint8Array) => createHash("sha256").update(b).digest("hex");
 
 function parse(url: string): { publicId: string; token: string } {
@@ -231,6 +229,7 @@ describe("verification", () => {
     expect(certs.length).toBe(versions.length);
     for (const { storage_key } of [...versions, ...certs]) {
       const text = pdfText((await evidence.get(storage_key))!).replace(/\s+/g, " ");
+      expect(text).not.toContain("Sent for signature");
       expect({ storage_key, marked: text.includes(DEV_SEAL_MARK) }).toEqual({
         storage_key,
         marked: true,

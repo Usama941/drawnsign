@@ -5,15 +5,13 @@ import { closeDb } from "@/db/client";
 import { hashToken } from "@/documents/ids";
 import { finalizeEnvelope } from "@/signing/finalize";
 import { expireEnvelope } from "@/signing/finalize";
-import { MemoryObjectStore } from "@/storage/memory-store";
-import { setStorageForTests, Storage } from "@/storage";
+import { setStorageForTests } from "@/storage";
 import { configureAppEnv, mailer, sessionFor } from "./auth-helpers";
 import { lastLinkTo, linksTo, r, sendEnvelope, signAll, signerSession } from "./signing-helpers";
-import { connect } from "./helpers";
+import { connect, sharedStorage } from "./helpers";
 import { call } from "./http";
 
-const evidence = new MemoryObjectStore(true);
-const storage = new Storage(new MemoryObjectStore(), evidence);
+const { evidence, storage } = sharedStorage();
 
 describe("envelopes and signing", () => {
   let admin: Client;

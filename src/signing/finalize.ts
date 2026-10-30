@@ -17,7 +17,7 @@ import { sealPdf, verifyPades } from "@/crypto/pades";
 import { derToPem } from "@/crypto/pki";
 import { buildCertificate } from "@/pdf/certificate";
 import { flattenFields, type FilledField } from "@/pdf/flatten";
-import { drawFooter } from "@/pdf/footer";
+import { drawFooter, stripFooter } from "@/pdf/footer";
 import { objectKey, type Storage } from "@/storage";
 import { getSealer } from "./sealer";
 import {
@@ -66,8 +66,9 @@ export async function finalizeEnvelope(
       .select()
       .from(fields)
       .where(and(eq(fields.envelopeId, env.id), isNotNull(fields.value)));
+    // Remove the SENT footer (not just cover it), then draw values and the SIGNED footer.
     const flattened = await flattenFields(
-      bytes,
+      await stripFooter(bytes),
       filled.map((f): FilledField => ({ ...f, value: f.value! })),
     );
 

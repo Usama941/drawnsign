@@ -98,8 +98,9 @@ export async function verifyPades(pdf: Uint8Array): Promise<SealCheck> {
   if (b + 2 > c || c + d > pdf.length) return result;
 
   try {
-    const hex = text.slice(b + 1, c - 1).replace(/(00)+$/, "");
-    const cmsDer = Buffer.from(hex.length % 2 ? `${hex}0` : hex, "hex");
+    // /Contents is zero-padded; take exactly the DER length the CMS header declares (never
+    // strip trailing zeros: a real signature can end in 0x00).
+    const cmsDer = derPrefix(Buffer.from(text.slice(b + 1, c - 1), "hex"));
     const content = Buffer.concat([pdf.subarray(a, a + b), pdf.subarray(c, c + d)]);
     const contentInfo = pkijs.ContentInfo.fromBER(toArrayBuffer(cmsDer));
     const signedData = new pkijs.SignedData({ schema: contentInfo.content });
@@ -145,4 +146,17 @@ export async function verifyPades(pdf: Uint8Array): Promise<SealCheck> {
     // Malformed signature data: leave the checks false.
   }
   return result;
+}
+
+// The leading DER element of a zero-padded buffer.
+export function derPrefix(buf: Buffer): Buffer {
+  if (buf.length < 2) throw new Error("truncated DER");
+  const first = buf[1]!;
+  if (first < 0x80) return buf.subarray(0, 2 + first);
+  const n = first & 0x7f;
+  if (n === 0 || n > 4 || buf.length < 2 + n) throw new Error("unsupported DER length");
+  let len = 0;
+  for (let i = 0; i < n; i++) len = len * 256 + buf[2 + i]!;
+  if (buf.length < 2 + n + len) throw new Error("truncated DER");
+  return buf.subarray(0, 2 + n + len);
 }

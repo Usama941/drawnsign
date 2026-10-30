@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { PDFDocument, StandardFonts } from "@cantoo/pdf-lib";
 import { beforeAll, describe, expect, it } from "vitest";
 import { DEV_SEAL_CN, DevSealSigner } from "./dev-seal";
-import { sealPdf, verifyPades } from "./pades";
+import { derPrefix, sealPdf, verifyPades } from "./pades";
 import { DevTimestampAuthority } from "./tsa";
 
 async function samplePdf(): Promise<Uint8Array> {
@@ -68,6 +68,12 @@ describe("PAdES development seal", () => {
     expect(check.digestValid).toBe(false);
     expect(check.signatureValid).toBe(false);
     expect(pdfsig(altered)).not.toContain("Signature is Valid");
+  });
+
+  it("reads a signature that ends in a zero byte (padding is not stripped blindly)", () => {
+    const der = Buffer.from([0x30, 0x82, 0x00, 0x03, 0x02, 0x01, 0x00]);
+    const padded = Buffer.concat([der, Buffer.alloc(16)]);
+    expect(derPrefix(padded)).toEqual(der);
   });
 
   it("an unsigned PDF reports not signed", async () => {
