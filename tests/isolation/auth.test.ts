@@ -1,61 +1,25 @@
-import { randomBytes } from "node:crypto";
 import type { Client } from "pg";
 import { afterAll, beforeAll, describe, expect, inject, it } from "vitest";
 import { getAuth } from "@/auth/server";
 import { resolveSession } from "@/auth/session";
 import { closeDb } from "@/db/client";
-import { MemoryMailer, setMailerForTests } from "@/lib/mail";
+import {
+  addMembership,
+  configureAppEnv,
+  cookieHeaders,
+  mailer,
+  password,
+  signIn,
+  signUpAndVerify,
+} from "./auth-helpers";
 import { connect } from "./helpers";
 import { totp } from "./totp";
-
-const mailer = new MemoryMailer();
-const password = `pw-${randomBytes(12).toString("hex")}`;
-
-function cookieHeaders(res: Headers): Headers {
-  const cookies = res
-    .getSetCookie()
-    .map((c) => c.split(";")[0])
-    .join("; ");
-  return new Headers({ cookie: cookies });
-}
-
-async function signUpAndVerify(email: string): Promise<string> {
-  const auth = getAuth();
-  await auth.api.signUpEmail({ body: { email, password, name: email } });
-  const mail = mailer.sent.findLast((m) => m.to === email);
-  const token = new URL(/https?:\/\/\S+/.exec(mail!.text)![0]).searchParams.get("token")!;
-  await auth.api.verifyEmail({ query: { token } });
-  const { rows } = await admin.query<{ id: string }>("SELECT id FROM users WHERE email = $1", [
-    email,
-  ]);
-  return rows[0]!.id;
-}
-
-async function signIn(email: string) {
-  return getAuth().api.signInEmail({ body: { email, password }, returnHeaders: true });
-}
-
-async function addMembership(userId: string, workspaceType: string, role: string) {
-  const { rows } = await admin.query<{ id: string }>(
-    "INSERT INTO tenants (name, workspace_type) VALUES ('auth test', $1) RETURNING id",
-    [workspaceType],
-  );
-  const tenantId = rows[0]!.id;
-  await admin.query(
-    "INSERT INTO memberships (tenant_id, workspace_type, user_id, role) VALUES ($1, $2, $3, $4)",
-    [tenantId, workspaceType, userId, role],
-  );
-  return tenantId;
-}
 
 let admin: Client;
 
 describe("auth and session resolution", () => {
   beforeAll(async () => {
-    process.env.DATABASE_URL = inject("appUrl");
-    process.env.BETTER_AUTH_URL = "http://localhost:3000";
-    process.env.BETTER_AUTH_SECRET = randomBytes(32).toString("hex");
-    setMailerForTests(mailer);
+    configureAppEnv(inject("appUrl"));
     admin = await connect("admin");
   });
 
@@ -73,8 +37,8 @@ describe("auth and session resolution", () => {
 
   it("resolves the tenant from the session and the membership, not from the request", async () => {
     const email = "owner@example.test";
-    const userId = await signUpAndVerify(email);
-    const tenantId = await addMembership(userId, "PUBLIC_CUSTOMER", "CUSTOMER_OWNER");
+    const userId = await signUpAndVerify(admin, email);
+    const tenantId = await addMembership(admin, userId, "PUBLIC_CUSTOMER", "CUSTOMER_OWNER");
 
     const { headers } = await signIn(email);
     const session = await resolveSession(cookieHeaders(headers));
@@ -89,8 +53,8 @@ describe("auth and session resolution", () => {
 
   it("drops the tenant when the membership is suspended", async () => {
     const email = "suspended@example.test";
-    const userId = await signUpAndVerify(email);
-    await addMembership(userId, "PUBLIC_CUSTOMER", "CUSTOMER_SENDER");
+    const userId = await signUpAndVerify(admin, email);
+    await addMembership(admin, userId, "PUBLIC_CUSTOMER", "CUSTOMER_SENDER");
     const { headers } = await signIn(email);
     await admin.query("UPDATE memberships SET status = 'SUSPENDED' WHERE user_id = $1", [userId]);
     const session = await resolveSession(cookieHeaders(headers));
@@ -100,8 +64,8 @@ describe("auth and session resolution", () => {
 
   it("requires MFA for company managers: password-only sessions are not satisfied", async () => {
     const email = "manager@example.test";
-    const userId = await signUpAndVerify(email);
-    await addMembership(userId, "COMPANY_MANAGED", "COMPANY_MANAGER");
+    const userId = await signUpAndVerify(admin, email);
+    await addMembership(admin, userId, "COMPANY_MANAGED", "COMPANY_MANAGER");
 
     const { headers } = await signIn(email);
     const before = await resolveSession(cookieHeaders(headers));
