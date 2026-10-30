@@ -29,6 +29,20 @@
       "when": 1793363330630,
       "tag": "0003_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793363454356,
+      "tag": "0004_auth",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793363455175,
+      "tag": "0005_auth_grants",
+      "breakpoints": true
     }
   ]
 }

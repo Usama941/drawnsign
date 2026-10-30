@@ -7,7 +7,15 @@ import { withTenant, type TenantContext } from "@/db/tenant";
 import { connect } from "./helpers";
 
 // Global tables that are deliberately not tenant-scoped.
-const GLOBAL_TABLES = ["users", "workspace_roles"];
+const GLOBAL_TABLES = [
+  "users",
+  "workspace_roles",
+  "sessions",
+  "accounts",
+  "verifications",
+  "two_factors",
+  "passkeys",
+];
 
 describe("row-level security", () => {
   let admin: Client;
