@@ -32,6 +32,12 @@ async function main(): Promise<void> {
        VALUES ($1, 'COMPANY_MANAGED', $2, 'COMPANY_ADMIN')`,
       [tenantId, userId],
     );
+    await client.query(
+      `INSERT INTO audit_ledger (tenant_id, actor_id, action, object_type, object_id, payload,
+                                 seq, payload_sha256, prev_hash, entry_hash)
+       VALUES ($1, NULL, 'tenant.created', 'tenant', $1, $2, 0, '', '', '')`,
+      [tenantId, JSON.stringify({ workspaceType: "COMPANY_MANAGED", firstAdmin: userId })],
+    );
     await client.query("COMMIT");
     console.log(`created COMPANY_MANAGED tenant ${tenantId}`);
   } catch (err) {
