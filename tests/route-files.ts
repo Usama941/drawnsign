@@ -11,11 +11,16 @@ export function listFiles(dir: string): string[] {
 }
 
 // Every route.ts under /api/v1, with the router it must belong to.
-export function v1RouteFiles(): { file: string; kind: "v1" | "company" }[] {
+export function v1RouteFiles(): { file: string; kind: "v1" | "company" | "signing" }[] {
   return listFiles(join(API_ROOT, "v1"))
     .filter((f) => f.endsWith(`${sep}route.ts`))
-    .map((file) => ({
-      file,
-      kind: relative(join(API_ROOT, "v1"), file).startsWith(`company${sep}`) ? "company" : "v1",
-    }));
+    .map((file) => {
+      const rel = relative(join(API_ROOT, "v1"), file);
+      const kind = rel.startsWith(`company${sep}`)
+        ? "company"
+        : rel.startsWith(`sign${sep}`)
+          ? "signing"
+          : "v1";
+      return { file, kind };
+    });
 }

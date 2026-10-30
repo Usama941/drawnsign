@@ -16,6 +16,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:isolation": "vitest run --config vitest.isolation.config.ts",
+    "test:e2e": "vitest run --config vitest.e2e.config.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx db/migrate.ts"
   },
@@ -28,6 +29,7 @@
     "inngest": "^4.26.2",
     "next": "16.4.3",
     "nodemailer": "^10.3.1",
+    "pdfjs-dist": "^6.4.299",
     "pg": "^8.23.1",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
@@ -43,6 +45,7 @@
     "drizzle-kit": "~0.31.11",
     "eslint": "^9.39.5",
     "eslint-config-next": "16.4.3",
+    "playwright": "1.63.0",
     "prettier": "^3.9.10",
     "smtp-server": "^3.21.3",
     "tsx": "^4.23.15",

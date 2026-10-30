@@ -15,6 +15,7 @@ const GLOBAL_TABLES = [
   "verifications",
   "two_factors",
   "passkeys",
+  "rate_limits",
 ];
 
 describe("row-level security", () => {
@@ -134,7 +135,7 @@ describe("row-level security", () => {
         tx.insert(memberships).values({
           tenantId: b.tenantId,
           workspaceType: "PUBLIC_CUSTOMER",
-          userId: a.userId,
+          userId: a.userId!,
           role: "CUSTOMER_VIEWER",
         }),
       ),

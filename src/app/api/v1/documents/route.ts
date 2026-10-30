@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { tenantContext } from "@/auth/session";
 import { createDocument, listDocuments, SEND, VIEW } from "@/documents/service";
-import { createUpload, uploadMode } from "@/documents/uploads";
+import { createUpload, uploadInfo } from "@/documents/uploads";
 import { readJson } from "@/server/input";
 import { route } from "@/server/route";
 
@@ -19,7 +19,7 @@ export const POST = route({ permission: SEND }, async ({ req, tx, session, audit
     details: { uploadId: upload.id },
   });
   return Response.json(
-    { documentId: doc.id, publicId: doc.publicId, upload: { id: upload.id, mode: uploadMode() } },
+    { documentId: doc.id, publicId: doc.publicId, upload: uploadInfo(upload) },
     { status: 201 },
   );
 });

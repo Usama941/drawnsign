@@ -77,7 +77,7 @@ export function getMailer(): Mailer {
     const smtp = process.env.SMTP_URL;
     if (token && from) {
       mailer = new PostmarkMailer(token, from);
-    } else if (smtp && process.env.NODE_ENV !== "production") {
+    } else if (smtp && process.env.VERCEL_ENV !== "production") {
       mailer = new SmtpMailer(smtp, from ?? "drawnsign <dev@localhost>");
     } else if (process.env.NODE_ENV === "production") {
       throw new Error("POSTMARK_SERVER_TOKEN and MAIL_FROM must be set in production");

@@ -6,7 +6,6 @@ assertSealModeAllowed();
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
-  typedRoutes: true,
 };
 
 export default nextConfig;

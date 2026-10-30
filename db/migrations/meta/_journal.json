@@ -71,6 +71,20 @@
       "when": 1793364925945,
       "tag": "0009_documents_guards",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793365945757,
+      "tag": "0010_signing",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1793365946608,
+      "tag": "0011_signing_guards",
+      "breakpoints": true
     }
   ]
 }

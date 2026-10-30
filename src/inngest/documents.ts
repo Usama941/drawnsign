@@ -1,3 +1,5 @@
+import { NonRetriableError } from "inngest";
+import { JobContextError } from "@/jobs/context";
 import { getStorage } from "@/storage";
 import { processUpload } from "@/documents/uploads";
 import type { TenantContext } from "@/db/tenant";
@@ -16,7 +18,15 @@ export const processUploadFn = inngest.createFunction(
   { id: "process-upload", triggers: { event: UPLOAD_RECEIVED }, retries: 3 },
   async ({ event, step }) => {
     const data = event.data as UploadReceivedData;
-    return step.run("sanitise", () => processUpload(data.ctx, data.uploadId, getStorage()));
+    return step.run("sanitise", async () => {
+      try {
+        return await processUpload(data.ctx, data.uploadId, getStorage());
+      } catch (err) {
+        // A context mismatch never succeeds on retry.
+        if (err instanceof JobContextError) throw new NonRetriableError(err.message);
+        throw err;
+      }
+    });
   },
 );
 
