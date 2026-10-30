@@ -1,4 +1,4 @@
-import { PDFDocument, PDFName, PDFString, StandardFonts } from "@cantoo/pdf-lib";
+import { degrees, PDFDocument, PDFName, PDFString, StandardFonts } from "@cantoo/pdf-lib";
 import { describe, expect, it } from "vitest";
 import { PDF_LIMITS, PdfRejectedError, sanitizePdf } from "./sanitize";
 
@@ -86,6 +86,22 @@ describe("sanitizePdf", () => {
     const twice = await sanitizePdf(once.bytes);
     expect(twice.pageCount).toBe(once.pageCount);
   });
+
+  it.each([90, 180, 270])(
+    "turns a page rotated %i degrees upright, as displayed",
+    async (angle) => {
+      const doc = await PDFDocument.create();
+      const page = doc.addPage([600, 800]);
+      page.drawText("rotated", { x: 50, y: 700 });
+      page.setRotation(degrees(angle));
+      const out = await PDFDocument.load((await sanitizePdf(await doc.save())).bytes);
+      const upright = out.getPage(0);
+      expect(upright.getRotation().angle).toBe(0);
+      expect(upright.getSize()).toEqual(
+        angle === 180 ? { width: 600, height: 800 } : { width: 800, height: 600 },
+      );
+    },
+  );
 
   it("rejects encrypted PDFs", async () => {
     const doc = await PDFDocument.create();
